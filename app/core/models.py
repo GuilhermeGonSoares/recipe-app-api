@@ -1,6 +1,7 @@
 """
 Modelos do banco de dados
 """
+from django.conf import settings
 from django.contrib.auth.models import (AbstractBaseUser, BaseUserManager,
                                         PermissionsMixin)
 from django.db import models
@@ -38,3 +39,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
+
+class Recipe(models.Model):
+    """Recipe objects."""
+    #1 usuário está associado a N receitas.
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, #Uma vez que alterarmos o modelo de usuário, podemos propagar essa mudança apenas alterando nas settings o modelo.
+        on_delete=models.CASCADE #Se excluimos o usuário todas as suas receitas cadastradas seram apagadas.
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    time_minutes = models.IntegerField()
+    price = models.DecimalField(max_digits=5, decimal_places=2)
+    link = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return self.title
