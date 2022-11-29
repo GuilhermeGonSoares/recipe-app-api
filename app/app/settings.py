@@ -40,9 +40,11 @@ INSTALLED_APPS = [
     #Other Apps:
     'rest_framework',
     'drf_spectacular',
+    'rest_framework.authtoken',
     #My Apps:
     'core',
     'user',
+    
 ]
 
 MIDDLEWARE = [
