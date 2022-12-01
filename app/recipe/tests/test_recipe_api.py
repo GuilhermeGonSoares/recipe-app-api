@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from core.models import Recipe, Tag
+from core.models import Ingredient, Recipe, Tag
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -194,3 +194,89 @@ class PrivateRecipeAPITests(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(recipe.tags.count(), 0)
+
+    def test_create_recipe_with_ingredients(self):
+        """Teste: Criar receitas com novos ingredients."""
+        payload = {
+        'title': 'Cauliflower Tacos',
+        'time_minutes': 60,
+        'price': Decimal('5.25'),
+        'ingredients': [{'name': 'Cauliflower'}, {'name': 'Salt'}],
+        'description': 'Sample description',
+        'link': 'http://example.com/recipe.pdf',
+        }
+
+        res = self.client.post(RECIPES_URL, payload, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        recipes = Recipe.objects.filter(user=self.user)
+        self.assertEqual(recipes.count(), 1)
+        recipe = recipes[0]
+        self.assertEqual(recipe.ingredients.count(), 2)
+        for ingredient in payload['ingredients']:
+            exist = recipe.ingredients.filter(name=ingredient['name'], user=self.user).exists()
+            self.assertTrue(exist)
+
+    def test_create_recipe_with_existing_ingredients(self):
+        """Teste: Criar receita com igredientes já cadastrados."""
+        Ingredient.objects.create(user=self.user, name='Salt')
+        payload = {
+        'title': 'Cauliflower Tacos',
+        'time_minutes': 60,
+        'price': Decimal('5.25'),
+        'ingredients': [{'name': 'Cauliflower'}, {'name': 'Salt'}],
+        'description': 'Sample description',
+        'link': 'http://example.com/recipe.pdf',
+        }
+        res = self.client.post(RECIPES_URL, payload, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        recipes = Recipe.objects.filter(user=self.user)
+        self.assertEqual(recipes.count(), 1)
+        recipe = recipes[0]
+        self.assertEqual(recipe.ingredients.count(), 2)
+
+    def test_create_ingredient_on_update(self):
+        """Teste: Criação de um ingrediente ao atualizar uma receita"""
+        recipe = create_recipe(user=self.user) 
+        payload = {'ingredients': [{'name': 'Salt'}, {'name': 'Vanilla'}]}
+
+        url = detail_url(recipe.id)
+        res = self.client.patch(url, payload, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        new_ingredient = Ingredient.objects.get(user=self.user, name='Salt')
+        self.assertIn(new_ingredient, recipe.ingredients.all())
+
+    def test_update_recipe_assing_ingredient(self):
+        """Teste: Atribuir um ingrediente existente ao atualizar uma receita."""
+        ingredient1 = Ingredient.objects.create(user=self.user, name='Salt')
+        recipe = create_recipe(user=self.user)
+        recipe.ingredients.add(ingredient1)
+
+        ingredient2 = Ingredient.objects.create(user=self.user, name='Vanilla')
+        payload = {'ingredients': [{'name': 'Vanilla'}]}
+        url = detail_url(recipe.id)
+        res = self.client.patch(url, payload, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(Ingredient.objects.filter(user=self.user).count(), 2)
+        self.assertIn(ingredient2, recipe.ingredients.all())
+        self.assertNotIn(ingredient1, recipe.ingredients.all())
+    
+    def test_clear_recipe_ingredient(self):
+        """Teste: Atualizar a receita com nenhum ingrediente cadastrado."""
+        ingrediente1 = Ingredient.objects.create(user=self.user, name='Pepper')
+        ingrediente2 = Ingredient.objects.create(user=self.user, name='Chili')
+        recipe = create_recipe(user=self.user)
+        recipe.ingredients.add(ingrediente1)
+        recipe.ingredients.add(ingrediente2)
+
+        payload = {'ingredients': []}
+        url = detail_url(recipe.id)
+        res = self.client.patch(url, payload, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertNotIn(ingrediente1, recipe.ingredients.all())
+        self.assertNotIn(ingrediente2, recipe.ingredients.all())
+        self.assertEqual(recipe.ingredients.count(), 0)
