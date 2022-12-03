@@ -1,7 +1,9 @@
 """
 Testes para a API de tag
 """
-from core.models import Tag
+from decimal import Decimal
+
+from core.models import Recipe, Tag
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -87,3 +89,47 @@ class PrivateTagsApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
         tags = Tag.objects.filter(user=self.user)
         self.assertFalse(tags.exists())
+
+    def test_filter_tags_assign_to_recipe(self):
+        """Teste: Lista de tags que estão associadas a uma determinada receita"""
+        tag1 = Tag.objects.create(user=self.user, name='Vegan')
+        tag2 = Tag.objects.create(user=self.user, name='Breakfast')
+        recipe = Recipe.objects.create(
+            user= self.user,
+            title='Apple Crumble',
+            time_minutes=5,
+            price=Decimal('4.50')
+        )
+        recipe.tags.add(tag1)
+
+        res = self.client.get(TAGS_URL, {'assigned_only': 1})
+
+        s1 = TagSerializer(tag1)
+        s2 = TagSerializer(tag2)
+
+        self.assertIn(s1.data, res.data)
+        self.assertNotIn(s2.data, res.data)
+
+    def test_filtered_tags_unique(self):
+        """Teste: Tags filtradas retornam uma lista única sem duplicadas."""
+        tag = Tag.objects.create(user=self.user, name='Breakfast')
+        Tag.objects.create(user=self.user, name='Dinner')
+        recipe1 = Recipe.objects.create(
+            user= self.user,
+            title='Apple Crumble',
+            time_minutes=5,
+            price=Decimal('4.50')
+        )
+        recipe2 = Recipe.objects.create(
+            user= self.user,
+            title='Pancakes',
+            time_minutes=5,
+            price=Decimal('5.50')
+        )
+        recipe1.tags.add(tag)
+        recipe2.tags.add(tag)
+
+        res = self.client.get(TAGS_URL, {'assigned_only': 1})
+
+        self.assertEqual(len(res.data), 1)
+

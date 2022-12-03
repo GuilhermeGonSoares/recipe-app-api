@@ -1,4 +1,6 @@
-from core.models import Ingredient
+from decimal import Decimal
+
+from core.models import Ingredient, Recipe
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -88,3 +90,45 @@ class PrivateIngredientApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
         self.assertNotIn(i2, serializer.data)
         self.assertEqual(ingredients.count(), 1)
+
+    def test_filter_ingredients_assigned_to_recipes(self):
+        """Teste: Lista de ingredientes associados a uma determinada receita"""
+        in1 = Ingredient.objects.create(user=self.user, name='Apple')
+        in2 = Ingredient.objects.create(user=self.user, name='Turkey')
+        recipe = Recipe.objects.create(
+            user= self.user,
+            title='Apple Crumble',
+            time_minutes=5,
+            price=Decimal('4.50')
+        )
+        recipe.ingredients.add(in1)
+
+        res = self.client.get(INGREDIENTS_URL, {'assigned_only': 1})
+
+        s1 = IngredientSerializer(in1)
+        s2 = IngredientSerializer(in2)
+        self.assertIn(s1.data, res.data)
+        self.assertNotIn(s2.data, res.data)
+    
+    def test_filtered_ingredients_unique(self):
+        """Teste: Ingredientes filtrados retornam uma lista sem duplicadas"""
+        ing = Ingredient.objects.create(user=self.user, name='Eggs')
+        Ingredient.objects.create(user=self.user, name='Lentils')
+        recipe1 = Recipe.objects.create(
+            title='Eggs Benedict',
+            time_minutes=60,
+            price=Decimal('7.00'),
+            user=self.user,
+        )
+        recipe2 = Recipe.objects.create(
+            title='Herb Eggs',
+            time_minutes=20,
+            price=Decimal('4.00'),
+            user=self.user,
+        )
+        recipe1.ingredients.add(ing)
+        recipe2.ingredients.add(ing)
+
+        res = self.client.get(INGREDIENTS_URL, {'assigned_only': 1})
+
+        self.assertEqual(len(res.data), 1)
